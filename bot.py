@@ -53,14 +53,14 @@ apex_bot = commands.Bot(command_prefix="!", intents=intents)
 # 2. Secondary Bot: AI PILOT 2.0 (AI Pilot Community)
 ai_pilot_bot = commands.Bot(command_prefix="!", intents=intents)
 
+# State guards to prevent duplicate triggers on reconnects
+apex_ready_initialized = False
+ai_pilot_ready_initialized = False
+last_trivia_dispatched_date = None
+
 # ==============================================================================
 # 🎉 UNIVERSAL CELEBRATORY ROLE PROMOTION DIRECT MESSAGE DISPATCHER
 # ==============================================================================
-CELEBRATION_BANNERS = [
-    "https://images-ext-1.discordapp.net/external/vj01uR4e8K44r4aPz3aV0v2c1e6Q_banner.png", # fallback or standard
-    "https://media.giphy.com/media/26tOZ42Mg6pbTUPHW/giphy.gif" # celebratory fireworks
-]
-
 async def send_role_promotion_celebration(member: discord.Member, role: discord.Role):
     if member.bot or role.name == "@everyone":
         return
@@ -628,15 +628,31 @@ async def update_milestone_and_stats():
                     except:
                         pass
 
-@tasks.loop(hours=6)
+@tasks.loop(hours=12)
 async def scheduled_daily_content():
+    global last_trivia_dispatched_date
+    today_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
+    
+    # Strictly only post once per calendar day
+    if last_trivia_dispatched_date == today_str:
+        return
+
     guild = discord.utils.get(ai_pilot_bot.guilds, id=1539332811276947537)
     if not guild: return
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     
-    # Post periodic trivia challenge
     trivia_ch = discord.utils.get(guild.text_channels, name="daily-ai-challenge")
     if trivia_ch:
+        # Check last message in channel to prevent duplicates
+        try:
+            async for m in trivia_ch.history(limit=3):
+                if m.author.id == ai_pilot_bot.user.id and m.embeds and "DAILY AI TRIVIA" in m.embeds[0].title:
+                    if (now_utc - m.created_at.replace(tzinfo=datetime.timezone.utc)).total_seconds() < 21600: # 6 hours
+                        last_trivia_dispatched_date = today_str
+                        return
+        except:
+            pass
+
         t_embed = discord.Embed(
             title="🏆 DAILY AI TRIVIA CHALLENGE",
             description="**Question**: In AI Agents, what is the difference between ReAct and Plan-and-Solve architectures?\n\n"
@@ -646,28 +662,35 @@ async def scheduled_daily_content():
         )
         try:
             await trivia_ch.send(embed=t_embed)
-        except:
-            pass
+            last_trivia_dispatched_date = today_str
+        except Exception as e:
+            print(f"[TRIVIA ERROR] {e}")
 
 # ==============================================================================
 # 🚀 READY EVENT FOR BOTH BOTS
 # ==============================================================================
 @apex_bot.event
 async def on_ready():
+    global apex_ready_initialized
     print(f"[APEX PREDATOR] Logged in as {apex_bot.user} (ID: {apex_bot.user.id})", flush=True)
-    apex_bot.add_view(ApexVerifyView())
-    apex_bot.add_view(TicketLaunchView())
-    apex_bot.add_view(TicketCloseView())
+    if not apex_ready_initialized:
+        apex_bot.add_view(ApexVerifyView())
+        apex_bot.add_view(TicketLaunchView())
+        apex_bot.add_view(TicketCloseView())
+        apex_ready_initialized = True
 
 @ai_pilot_bot.event
 async def on_ready():
+    global ai_pilot_ready_initialized
     print(f"[AI PILOT 2.0] Logged in as {ai_pilot_bot.user} (ID: {ai_pilot_bot.user.id})", flush=True)
-    ai_pilot_bot.add_view(AIPilotVerifyView())
-    ai_pilot_bot.add_view(FlightStandardsRulesView())
-    if not update_milestone_and_stats.is_running():
-        update_milestone_and_stats.start()
-    if not scheduled_daily_content.is_running():
-        scheduled_daily_content.start()
+    if not ai_pilot_ready_initialized:
+        ai_pilot_bot.add_view(AIPilotVerifyView())
+        ai_pilot_bot.add_view(FlightStandardsRulesView())
+        if not update_milestone_and_stats.is_running():
+            update_milestone_and_stats.start()
+        if not scheduled_daily_content.is_running():
+            scheduled_daily_content.start()
+        ai_pilot_ready_initialized = True
 
 # ==============================================================================
 # 🚀 DUAL-BOT CLUSTER RUNTIME
