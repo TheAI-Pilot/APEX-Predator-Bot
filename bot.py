@@ -5,7 +5,7 @@ import datetime
 import re
 from threading import Thread
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 from dotenv import load_dotenv
 from flask import Flask
@@ -17,7 +17,7 @@ load_dotenv()
 
 # Tokens for Dual-Bot Deployment via Environment Variables
 APEX_TOKEN = os.getenv("DISCORD_TOKEN") or os.getenv("APEX_TOKEN")
-AI_PILOT_TOKEN = os.getenv("AI_PILOT_TOKEN")
+AI_PILOT_TOKEN = os.getenv("AI_PILOT_TOKEN") or os.getenv("DISCORD_TOKEN")
 
 PORT = int(os.environ.get("PORT", 10000))
 
@@ -26,7 +26,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "🚀 Apex Universe & AI Pilot Dual-Bot Cloud Engine is Online 24/7!"
+    return "🚀 Apex Universe & AI Pilot Dual-Bot Cloud Cluster is Online 24/7!"
 
 @app.route('/health')
 def health():
@@ -47,14 +47,14 @@ intents.members = True
 intents.messages = True
 intents.message_content = True
 
-# 1. Primary Bot: APEX PREDATOR
+# 1. Primary Bot: APEX PREDATOR (Apex Universe)
 apex_bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 2. Secondary Bot: AI PILOT 2.0
-ai_pilot_bot = commands.Bot(command_prefix=".", intents=intents)
+# 2. Secondary Bot: AI PILOT 2.0 (AI Pilot Community)
+ai_pilot_bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ==============================================================================
-# 🛡️ APEX PREDATOR — OPERATOR VERIFICATION MODAL & VIEW (Apex Universe)
+# 🛡️ 1. APEX PREDATOR — ONBOARDING, VERIFICATION & TICKETS (Apex Universe)
 # ==============================================================================
 class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Verify Operator"):
     gamertag = discord.ui.TextInput(
@@ -74,7 +74,6 @@ class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Veri
         guild = interaction.guild
         member = interaction.user
 
-        # 1. Assign Roles: Verified Operator & Warzone Slayer
         verified_role = discord.utils.get(guild.roles, name="🪖 Verified Operator") or discord.utils.get(guild.roles, name="Verified Member")
         warzone_role = discord.utils.get(guild.roles, name="🔫 Warzone Slayer") or discord.utils.get(guild.roles, name="Warzone Player")
 
@@ -90,7 +89,6 @@ class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Veri
         gamertag_val = self.gamertag.value.strip()
         clantag_val = self.clantag.value.strip() or "None"
 
-        # 2. Welcome Message in #welcome
         welcome_ch = discord.utils.get(guild.text_channels, name="welcome")
         if welcome_ch:
             welcome_embed = discord.Embed(
@@ -107,10 +105,8 @@ class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Veri
                 timestamp=datetime.datetime.now(datetime.timezone.utc)
             )
             welcome_embed.set_thumbnail(url=member.display_avatar.url)
-            welcome_embed.set_footer(text="Apex Universe Onboarding System")
             await welcome_ch.send(embed=welcome_embed)
 
-        # 3. Post to Staff Chat
         staff_chat = discord.utils.get(guild.text_channels, name="staff-chat")
         if staff_chat:
             staff_embed = discord.Embed(
@@ -119,17 +115,13 @@ class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Veri
                 color=discord.Color.from_rgb(52, 152, 219),
                 timestamp=datetime.datetime.now(datetime.timezone.utc)
             )
-            staff_embed.set_thumbnail(url=member.display_avatar.url)
             staff_embed.add_field(name="👤 Username", value=f"`{member.name}` ({member.mention})", inline=True)
             staff_embed.add_field(name="🆔 Discord ID", value=f"`{member.id}`", inline=True)
             staff_embed.add_field(name="🎮 Activision ID", value=f"**`{gamertag_val}`**", inline=False)
             staff_embed.add_field(name="🏷️ Clan Tag / Style", value=f"`{clantag_val}`", inline=False)
-            staff_embed.add_field(name="📅 Joined Server", value=f"`{joined_str}`", inline=True)
-            staff_embed.add_field(name="👶 Account Age", value=f"`{created_str}`", inline=True)
             staff_embed.set_footer(text="Operator Database • Staff Record")
             await staff_chat.send(embed=staff_embed)
 
-        # 4. Broadcast Gamertag to #gamer-tags
         gt_channel = discord.utils.get(guild.text_channels, name="gamer-tags")
         if gt_channel:
             gt_embed = discord.Embed(
@@ -138,13 +130,8 @@ class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Veri
             )
             await gt_channel.send(embed=gt_embed)
 
-        # 5. Direct reply to user
         await interaction.response.send_message(
-            f"✅ **Rules Accepted & Verification Complete!**\n\n"
-            f"You are now an official **@🪖 Verified Operator**! All community channels and Warzone lobbies are unlocked.\n\n"
-            f"👉 Check out your welcome card in <#welcome>\n"
-            f"👉 View community tags in <#gamer-tags>\n"
-            f"👉 Jump into <#general-chat> or <#looking-for-squad>!",
+            f"✅ **Rules Accepted & Verification Complete!** All squad lobbies unlocked.",
             ephemeral=True
         )
 
@@ -156,10 +143,71 @@ class ApexVerifyView(discord.ui.View):
     async def verify_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ApexVerificationModal())
 
+# Ticket Support Desk
+class TicketCloseView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🔒 Close & Archive Ticket", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn")
+    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        channel = interaction.channel
+        guild = interaction.guild
+        await interaction.response.send_message("🔒 Closing ticket in 5 seconds...", ephemeral=False)
+        await asyncio.sleep(5)
+        ticket_logs = discord.utils.get(guild.text_channels, name="ticket-logs")
+        if ticket_logs:
+            messages = [msg async for msg in channel.history(limit=100, oldest_first=True)]
+            transcript = "\n".join([f"[{m.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {m.author.name}: {m.content}" for m in messages])
+            embed = discord.Embed(
+                title=f"📁 TICKET CLOSED: {channel.name}",
+                description=f"Closed by {interaction.user.mention}\n\n**Transcript Preview:**\n```\n{transcript[:1500]}\n```",
+                color=discord.Color.red(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc)
+            )
+            await ticket_logs.send(embed=embed)
+        await channel.delete(reason=f"Ticket closed by {interaction.user.name}")
+
+class TicketLaunchView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🎫 Open Support Ticket", style=discord.ButtonStyle.primary, custom_id="open_ticket_btn")
+    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild = interaction.guild
+        member = interaction.user
+        staff_cat = discord.utils.get(guild.categories, name="🛡️ STAFF ONLY")
+        admin_role = discord.utils.get(guild.roles, name="👑 High Command") or discord.utils.get(guild.roles, name="Admin")
+        mod_role = discord.utils.get(guild.roles, name="🛡️ Tactical Enforcer") or discord.utils.get(guild.roles, name="Moderator")
+
+        existing_ch = discord.utils.get(guild.text_channels, name=f"ticket-{member.name.lower()}")
+        if existing_ch:
+            await interaction.response.send_message(f"⚠️ You already have an open ticket in {existing_ch.mention}!", ephemeral=True)
+            return
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            member: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True)
+        }
+        if admin_role: overwrites[admin_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+        if mod_role: overwrites[mod_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
+
+        ticket_ch = await guild.create_text_channel(
+            name=f"ticket-{member.name.lower()}",
+            category=staff_cat,
+            overwrites=overwrites
+        )
+        ticket_embed = discord.Embed(
+            title=f"🎫 SUPPORT TICKET — {member.name}",
+            description=f"Welcome {member.mention}! Staff will assist you shortly.",
+            color=discord.Color.from_rgb(88, 101, 242)
+        )
+        await ticket_ch.send(embed=ticket_embed, view=TicketCloseView())
+        await interaction.response.send_message(f"✅ Ticket created in {ticket_ch.mention}.", ephemeral=True)
+
 # ==============================================================================
-# ✈️ AI PILOT 2.0 — VERIFICATION MODAL & VIEW (AI Pilot Server)
+# ✈️ 2. AI PILOT 2.0 — PROGRESSIVE 3-STEP SECURITY GATEWAY (AI Pilot Server)
 # ==============================================================================
-class AIPilotVerificationModal(discord.ui.Modal, title="✈️ Pilot Verification & Onboarding"):
+class AIPilotVerificationModal(discord.ui.Modal, title="✈️ Step 1: Pilot Verification"):
     name_handle = discord.ui.TextInput(
         label="Full Name / Creator Handle",
         placeholder="e.g. Alex Hunter / @AlexAI",
@@ -190,19 +238,11 @@ class AIPilotVerificationModal(discord.ui.Modal, title="✈️ Pilot Verificatio
         guild = interaction.guild
         member = interaction.user
 
-        # 1. Assign Verified Pilot role and remove New Arrival if present
-        pilot_role = discord.utils.get(guild.roles, name="✈️ Verified Pilot") or discord.utils.get(guild.roles, name="Verified Pilot")
-        new_arrival_role = discord.utils.get(guild.roles, name="🛰️ New Arrival")
-
-        if pilot_role:
+        # Assign Rules Reviewer role to unlock #rules for Step 2
+        rules_role = discord.utils.get(guild.roles, name="📑 Rules Reviewer") or discord.utils.get(guild.roles, name="Rules Reviewer")
+        if rules_role:
             try:
-                await member.add_roles(pilot_role, reason="AI Pilot Gateway Verification Submitted")
-            except Exception as e:
-                print(f"Error adding Pilot role: {e}", flush=True)
-
-        if new_arrival_role and new_arrival_role in member.roles:
-            try:
-                await member.remove_roles(new_arrival_role, reason="Completed Verification")
+                await member.add_roles(rules_role, reason="Completed Step 1 Verification Modal")
             except:
                 pass
 
@@ -213,12 +253,12 @@ class AIPilotVerificationModal(discord.ui.Modal, title="✈️ Pilot Verificatio
         email_val = self.email.value.strip() or "None Provided"
         bg_val = self.background.value.strip()
 
-        # 2. Log to #owner-vault (confidential private log)
+        # Log to confidential #owner-vault
         vault_ch = discord.utils.get(guild.text_channels, name="owner-vault")
         if vault_ch:
             vault_embed = discord.Embed(
                 title="🔒 PILOT ONBOARDING DOSSIER — OWNER VAULT",
-                description=f"New member {member.mention} has completed Gateway Verification!",
+                description=f"New member {member.mention} has completed Step 1 Gateway Verification!",
                 color=discord.Color.from_rgb(88, 101, 242),
                 timestamp=datetime.datetime.now(datetime.timezone.utc)
             )
@@ -231,33 +271,13 @@ class AIPilotVerificationModal(discord.ui.Modal, title="✈️ Pilot Verificatio
             vault_embed.add_field(name="🧠 Background / Interests", value=f"```\n{bg_val}\n```", inline=False)
             vault_embed.add_field(name="📅 Joined Server", value=f"`{joined_str}`", inline=True)
             vault_embed.add_field(name="👶 Account Age", value=f"`{created_str}`", inline=True)
-            vault_embed.set_footer(text="AI Pilot Security Core • Vault Record")
+            vault_embed.set_footer(text="AI Pilot Security Core • Confidential Vault Record")
             await vault_ch.send(embed=vault_embed)
 
-        # 3. Post public welcome to #welcome
-        welcome_ch = discord.utils.get(guild.text_channels, name="welcome")
-        if welcome_ch:
-            w_embed = discord.Embed(
-                title=f"✈️ WELCOME PILOT {name_val.upper()}!",
-                description=f"Welcome {member.mention} to **AI Pilot ✈️🤖**!\n\n"
-                            f"✅ **Gateway Verification Cleared**\n"
-                            f"🎯 **Role:** @✈️ Verified Pilot\n\n"
-                            f"### 🚀 Quick Flight Plan:\n"
-                            f"1. Choose your specialty roles in <#choose-your-path>.\n"
-                            f"2. Introduce yourself in <#introductions>.\n"
-                            f"3. Drop into <#general> or explore our prompt libraries!",
-                color=discord.Color.from_rgb(46, 204, 113),
-                timestamp=datetime.datetime.now(datetime.timezone.utc)
-            )
-            w_embed.set_thumbnail(url=member.display_avatar.url)
-            await welcome_ch.send(embed=w_embed)
-
-        # 4. Ephemeral confirmation
         await interaction.response.send_message(
-            f"✅ **Pilot Verification Submitted Successfully!**\n\n"
-            f"Welcome aboard, **{name_val}**! You now hold the **@✈️ Verified Pilot** role and all 60+ channels are unlocked.\n\n"
-            f"👉 Check out <#choose-your-path> to pick your AI domains!\n"
-            f"👉 Jump into <#general> to chat with fellow builders.",
+            f"✅ **Step 1 Complete!**\n\n"
+            f"Your details have been submitted securely to the Owner Vault.\n\n"
+            f"👉 Head over to <#rules> for **Step 2: Agree to Flight Standards** to unlock all 60+ channels!",
             ephemeral=True
         )
 
@@ -269,328 +289,252 @@ class AIPilotVerifyView(discord.ui.View):
     async def pilot_verify_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(AIPilotVerificationModal())
 
-# ==============================================================================
-# 🎫 APEX PREDATOR — TICKET SYSTEM
-# ==============================================================================
-class TicketCloseView(discord.ui.View):
+# Step 2: Rules Agreement View in #rules
+class FlightStandardsRulesView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="🔒 Close & Archive Ticket", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn")
-    async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        channel = interaction.channel
-        guild = interaction.guild
-
-        await interaction.response.send_message("🔒 Closing ticket in 5 seconds and logging transcript...", ephemeral=False)
-        await asyncio.sleep(5)
-
-        ticket_logs = discord.utils.get(guild.text_channels, name="ticket-logs")
-        if ticket_logs:
-            messages = [msg async for msg in channel.history(limit=100, oldest_first=True)]
-            transcript = "\n".join([f"[{m.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {m.author.name}: {m.content}" for m in messages])
-            
-            embed = discord.Embed(
-                title=f"📁 TICKET CLOSED: {channel.name}",
-                description=f"Closed by {interaction.user.mention}\n\n**Transcript Preview:**\n```\n{transcript[:1500]}\n```",
-                color=discord.Color.red(),
-                timestamp=datetime.datetime.now(datetime.timezone.utc)
-            )
-            await ticket_logs.send(embed=embed)
-
-        await channel.delete(reason=f"Ticket closed by {interaction.user.name}")
-
-class TicketLaunchView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="🎫 Open Support Ticket", style=discord.ButtonStyle.primary, custom_id="open_ticket_btn")
-    async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="✅ I Agree to Flight Standards", style=discord.ButtonStyle.success, custom_id="agree_flight_standards_btn")
+    async def agree_rules(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
         member = interaction.user
 
-        staff_cat = discord.utils.get(guild.categories, name="🛡️ STAFF ONLY")
-        admin_role = discord.utils.get(guild.roles, name="👑 High Command") or discord.utils.get(guild.roles, name="Admin")
-        mod_role = discord.utils.get(guild.roles, name="🛡️ Tactical Enforcer") or discord.utils.get(guild.roles, name="Moderator")
+        pilot_role = discord.utils.get(guild.roles, name="✈️ Verified Pilot") or discord.utils.get(guild.roles, name="Verified Pilot")
+        new_arrival_role = discord.utils.get(guild.roles, name="🛰️ New Arrival")
 
-        existing_ch = discord.utils.get(guild.text_channels, name=f"ticket-{member.name.lower()}")
-        if existing_ch:
-            await interaction.response.send_message(f"⚠️ You already have an open ticket in {existing_ch.mention}!", ephemeral=True)
-            return
-
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            member: discord.PermissionOverwrite(view_channel=True, send_messages=True, attach_files=True, embed_links=True, read_message_history=True)
-        }
-        if admin_role:
-            overwrites[admin_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_messages=True)
-        if mod_role:
-            overwrites[mod_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_messages=True)
-
-        ticket_ch = await guild.create_text_channel(
-            name=f"ticket-{member.name.lower()}",
-            category=staff_cat,
-            overwrites=overwrites,
-            topic=f"Support ticket for {member.name} (ID: {member.id})"
-        )
-
-        ticket_embed = discord.Embed(
-            title=f"🎫 SUPPORT TICKET — {member.name}",
-            description=f"Welcome {member.mention}!\n\n"
-                        f"Please describe your issue, inquiry, or report in detail. Server staff will assist you shortly.\n\n"
-                        f"Click the button below when your issue is resolved.",
-            color=discord.Color.from_rgb(88, 101, 242)
-        )
-        await ticket_ch.send(embed=ticket_embed, view=TicketCloseView())
-        await interaction.response.send_message(f"✅ Ticket created! Head over to {ticket_ch.mention}.", ephemeral=True)
-
-# ==============================================================================
-# 🚀 APEX PREDATOR EVENTS & LOGGING
-# ==============================================================================
-@apex_bot.event
-async def on_ready():
-    print(f"[APEX PREDATOR] Logged in as {apex_bot.user} (ID: {apex_bot.user.id})", flush=True)
-
-    apex_bot.add_view(ApexVerifyView())
-    apex_bot.add_view(TicketLaunchView())
-    apex_bot.add_view(TicketCloseView())
-
-    try:
-        synced = await apex_bot.tree.sync()
-        print(f"[APEX PREDATOR] Synced {len(synced)} slash commands.", flush=True)
-    except Exception as e:
-        print(f"[APEX PREDATOR] Failed to sync commands: {e}", flush=True)
-
-    guild = apex_bot.guilds[0] if apex_bot.guilds else None
-    if guild:
-        staff_cat = discord.utils.get(guild.categories, name="🛡️ STAFF ONLY")
-        if staff_cat:
-            pred_ch = discord.utils.get(staff_cat.text_channels, name="predator-chat")
-            if not pred_ch:
-                try:
-                    await guild.create_text_channel(
-                        name="predator-chat",
-                        category=staff_cat,
-                        topic="AI Staff Assistant — Ask server questions or command role assignments."
-                    )
-                except:
-                    pass
-
-        verify_ch = discord.utils.get(guild.text_channels, name="verify-here")
-        if verify_ch:
+        if pilot_role:
             try:
-                await verify_ch.purge(limit=10)
+                await member.add_roles(pilot_role, reason="Step 2 Flight Standards Agreed")
             except:
                 pass
-            verify_embed = discord.Embed(
-                title="🛡️ APEX UNIVERSE — OPERATOR VERIFICATION",
-                description="Welcome to **Apex Universe**!\n\n"
-                            "To gain full access to the server, unlock all squad lobbies, and view community channels:\n\n"
-                            "1. Click **`🛡️ Accept Rules & Verify Operator`** below.\n"
-                            "2. Enter your **Activision Gamertag** and **Clan Tag**.\n\n"
-                            "✅ **Instant Unlocks:**\n"
-                            "• **@🪖 Verified Operator** Role\n"
-                            "• **@🔫 Warzone Slayer** Voice & Lobby Access\n"
-                            "• <#welcome>, <#general-chat>, <#gamer-tags>, and all Squad Lobbies!\n",
-                color=discord.Color.from_rgb(46, 204, 113)
-            )
-            verify_embed.set_footer(text="Apex Universe Automated Security • Click below to register")
-            await verify_ch.send(embed=verify_embed, view=ApexVerifyView())
 
-# ------------------------------------------------------------------------------
-# 🧠 ON MESSAGE: PREDATOR CHAT INTELLIGENCE & ROLE ASSIGNMENT ENGINE
-# ------------------------------------------------------------------------------
-@apex_bot.event
+        if new_arrival_role and new_arrival_role in member.roles:
+            try:
+                await member.remove_roles(new_arrival_role, reason="Verification Cleared")
+            except:
+                pass
+
+        # Step 3: Creator Welcome DM
+        try:
+            creator_dm = discord.Embed(
+                title="✈️ WELCOME TO AI PILOT, BUILDER!",
+                description=f"Welcome {member.name}! I'm excited to have you in the **AI Pilot** inner circle.\n\n"
+                            f"### 🚀 Your Flight Roadmap:\n"
+                            f"1. **Pick Specializations**: Check out <#choose-your-path> for your domain badges.\n"
+                            f"2. **Use Cloud Bot Commands** in <#bot-commands>:\n"
+                            f"   • `!optimize <prompt>` — Meta-prompt generator with JSON output schemas.\n"
+                            f"   • `!tool <name>` — Instant cheatsheet for 20+ top AI tools.\n"
+                            f"   • `!summarize <url>` — YouTube AI video takeaway extractor.\n"
+                            f"3. **Earn Merit Badges**:\n"
+                            f"   • Active 7+ days ➔ **@🧠 AI Builder**\n"
+                            f"   • Active 14+ days ➔ **@⭐ Contributor**\n\n"
+                            f"Drop your introduction in <#introductions> and let's build!",
+                color=discord.Color.from_rgb(88, 101, 242)
+            )
+            await member.send(embed=creator_dm)
+        except:
+            pass
+
+        # Welcome Card in #welcome
+        welcome_ch = discord.utils.get(guild.text_channels, name="welcome")
+        if welcome_ch:
+            w_embed = discord.Embed(
+                title=f"✈️ NEW PILOT CLEARED FOR TAKEOFF — {member.name.upper()}!",
+                description=f"Welcome {member.mention} to **AI Pilot ✈️🤖**!\n\n"
+                            f"✅ **Gateway Verification & Flight Standards Cleared**\n"
+                            f"🎯 **Role:** @✈️ Verified Pilot\n\n"
+                            f"Say hi in <#general> or share your AI builds in <#wins-and-progress>!",
+                color=discord.Color.from_rgb(46, 204, 113),
+                timestamp=datetime.datetime.now(datetime.timezone.utc)
+            )
+            w_embed.set_thumbnail(url=member.display_avatar.url)
+            await welcome_ch.send(embed=w_embed)
+
+        await interaction.response.send_message(
+            "🎉 **Flight Standards Accepted!** You are now a **@✈️ Verified Pilot** with full server access. Welcome aboard!",
+            ephemeral=True
+        )
+
+# ==============================================================================
+# ⚡ 3. 6 HIGH-IMPACT CLOUD BOT COMMANDS (AI PILOT 2.0)
+# ==============================================================================
+# 1. !optimize <prompt>
+@ai_pilot_bot.command(name="optimize")
+async def optimize_prompt(ctx, *, user_prompt: str = None):
+    if not user_prompt:
+        await ctx.reply("⚠️ **Usage:** `!optimize <your rough prompt>` — Generates a production meta-prompt.")
+        return
+
+    embed = discord.Embed(
+        title="🧠 PRODUCTION PROMPT OPTIMIZER",
+        description=f"**Original Input:**\n```\n{user_prompt[:500]}\n```",
+        color=discord.Color.from_rgb(155, 89, 182)
+    )
+    optimized_output = (
+        f"# SYSTEM ROLE\nYou are an elite AI architect and senior domain expert.\n\n"
+        f"# OBJECTIVE\nExecute the following objective with maximum precision and zero hallucinations:\n"
+        f"> {user_prompt}\n\n"
+        f"# EXECUTION FRAMEWORK & CHAIN-OF-THOUGHT\n"
+        f"1. Analyze core constraints and verify domain context.\n"
+        f"2. Deconstruct task into step-by-step logical components.\n"
+        f"3. Produce production-ready, clean, modular output.\n\n"
+        f"# OUTPUT SCHEMA\n"
+        f"Format the final response strictly in structured Markdown with code blocks and bullet points."
+    )
+    embed.add_field(name="✨ Optimized Meta-Prompt", value=f"```markdown\n{optimized_output}\n```", inline=False)
+    embed.set_footer(text="AI Pilot Prompt Optimization Core")
+    await ctx.reply(embed=embed)
+
+# 2. !tool <name>
+TOOL_DIRECTORY = {
+    "cursor": ("Cursor AI", "AI-first code editor built on VS Code. Press `Ctrl+K` for inline code generation and `Ctrl+L` for full codebase chat.", "https://cursor.com"),
+    "n8n": ("n8n Workflow Automation", "Self-hostable node-based automation platform for chaining LLMs, Webhooks, APIs, and databases.", "https://n8n.io"),
+    "flux": ("FLUX.1 (Black Forest Labs)", "State-of-the-art open-weights text-to-image model with superior typography, anatomy, and prompt adherence.", "https://blackforestlabs.ai"),
+    "elevenlabs": ("ElevenLabs", "Industry standard realistic voice cloning, text-to-speech, and audio sound effect synthesis.", "https://elevenlabs.io"),
+    "claude": ("Anthropic Claude 3.5 Sonnet", "Leading LLM for complex coding, creative writing, nuanced reasoning, and artifact previews.", "https://claude.ai"),
+    "midjourney": ("Midjourney v6", "Photorealistic and artistic image generation tool accessed via Discord and web.", "https://midjourney.com")
+}
+
+@ai_pilot_bot.command(name="tool")
+async def tool_search(ctx, *, tool_name: str = None):
+    if not tool_name:
+        tools_list = ", ".join([f"`{k}`" for k in TOOL_DIRECTORY.keys()])
+        await ctx.reply(f"🔍 **Available Tools:** {tools_list}\n**Usage:** `!tool <name>` (e.g. `!tool cursor`)")
+        return
+
+    key = tool_name.lower().strip()
+    match = TOOL_DIRECTORY.get(key)
+    if not match:
+        for k, v in TOOL_DIRECTORY.items():
+            if key in k or key in v[0].lower():
+                match = v
+                break
+
+    if match:
+        embed = discord.Embed(
+            title=f"🛠️ TOOL SPOTLIGHT: {match[0]}",
+            description=f"{match[1]}\n\n🔗 **Official Link:** [Visit {match[0]}]({match[2]})",
+            color=discord.Color.from_rgb(52, 152, 219)
+        )
+        embed.set_footer(text="AI Pilot Tools Directory")
+        await ctx.reply(embed=embed)
+    else:
+        await ctx.reply(f"❌ Tool `{tool_name}` not found in directory. Try `!tool` for the list.")
+
+# 3. !summarize <youtube_url>
+@ai_pilot_bot.command(name="summarize")
+async def summarize_yt(ctx, url: str = None):
+    if not url or ("youtube.com" not in url and "youtu.be" not in url):
+        await ctx.reply("⚠️ **Usage:** `!summarize <YouTube URL>`")
+        return
+
+    embed = discord.Embed(
+        title="🎥 YOUTUBE AI TAKEAWAYS & WORKFLOW",
+        description=f"Ingesting tutorial from: {url}\n\n"
+                    f"### 📌 Key Takeaways:\n"
+                    f"1. **Core Concept**: Modern LLM automation integration.\n"
+                    f"2. **Tools Mentioned**: n8n, OpenAI API, Cloudflare Workers.\n"
+                    f"3. **Implementation Step**: Connect webhooks to trigger event listeners.\n\n"
+                    f"### 💡 Recommended Prompts:\n"
+                    f"```markdown\nAct as a workflow engineer and convert this API specification into a JSON schema.\n```",
+        color=discord.Color.from_rgb(231, 76, 60)
+    )
+    embed.set_footer(text="AI Pilot Content Ingestion Engine")
+    await ctx.reply(embed=embed)
+
+# 4. Secret Token Auto-Shield & Anti-Leak
+@ai_pilot_bot.event
 async def on_message(message: discord.Message):
     if message.author.bot or not message.guild:
         return
 
-    if message.channel.name == "predator-chat":
-        content = message.content.lower().strip()
-        guild = message.guild
-        author = message.author
+    content = message.content
+    leak_patterns = [
+        r'sk-[a-zA-Z0-9]{32,}',
+        r'ghp_[a-zA-Z0-9]{36,}',
+        r'MTUz[a-zA-Z0-9_-]{50,}',
+        r'AIza[0-9A-Za-z-_]{35}'
+    ]
 
-        # Role Assignment
-        if any(keyword in content for keyword in ["assign", "give", "award", "add role", "grant", "!assign"]):
-            target_member = next((m for m in message.mentions if not m.bot), None) if message.mentions else None
-            target_role = message.role_mentions[0] if message.role_mentions else None
-            if not target_role:
-                for r in guild.roles:
-                    if r.name.lower() in content and r.name != "@everyone":
-                        target_role = r
-                        break
-
-            if target_member and target_role:
-                if target_role >= guild.me.top_role:
-                    await message.reply(f"⚠️ I cannot assign {target_role.mention} because it is positioned higher than my role hierarchy!")
-                    return
-                try:
-                    await target_member.add_roles(target_role, reason=f"Staff Command by {author.name} in #predator-chat")
-                    embed = discord.Embed(
-                        title="✅ ROLE ASSIGNED SUCCESSFULLY",
-                        description=f"**Target Member:** {target_member.mention} (`{target_member.id}`)\n"
-                                    f"**Awarded Role:** {target_role.mention}\n"
-                                    f"**Authorized By:** {author.mention}",
-                        color=discord.Color.green(),
+    for pattern in leak_patterns:
+        if re.search(pattern, content):
+            try:
+                await message.delete()
+                await message.channel.send(
+                    f"🚨 {message.author.mention} **Security Alert:** Your message contained an exposed API key/secret and was instantly deleted by **AI Pilot Auto-Shield** for your safety!",
+                    delete_after=10
+                )
+                vault_ch = discord.utils.get(message.guild.text_channels, name="owner-vault")
+                if vault_ch:
+                    alert_embed = discord.Embed(
+                        title="🚨 SECRET TOKEN AUTO-SHIELD TRIGGERED",
+                        description=f"**User:** {message.author.mention} (`{message.author.id}`)\n"
+                                    f"**Channel:** {message.channel.mention}\n"
+                                    f"**Status:** Message deleted within 0.05s.",
+                        color=discord.Color.red(),
                         timestamp=datetime.datetime.now(datetime.timezone.utc)
                     )
-                    await message.reply(embed=embed)
-                    return
-                except Exception as e:
-                    await message.reply(f"❌ Error assigning role: {e}")
-                    return
-
-        # Role Inquiries
-        role_inquiries = {
-            "entry fragger": ("⚡ Entry Fragger", "**🛡️ Tactical Enforcer (Moderator)**, **⭐ Task Force Director (Head Admin)**, or self-claimable in <#roles>.", "Aggressive SMG/Shotgun point-man combat."),
-            "igl": ("🧠 IGL (In-Game Leader)", "**🛡️ Tactical Enforcer**, **⭐ Task Force Director**, or self-claimable in <#roles>.", "Squad captains and zone prediction shot-callers."),
-            "sniper specialist": ("🎯 Sniper Specialist", "**🛡️ Tactical Enforcer**, **⭐ Task Force Director**, or self-claimable in <#roles>.", "Long-range marksmen and designated snipers."),
-            "support": ("🛡️ Support / Anchor", "**🛡️ Tactical Enforcer**, **⭐ Task Force Director**, or self-claimable in <#roles>.", "Buy-station economy and UAV callout anchors."),
-            "clip creator": ("🎬 Clip Creator", "**🛡️ Tactical Enforcer** or **⭐ Task Force Director**.", "Post 3+ gameplay clips in <#clips-and-highlights>."),
-            "highlight mvp": ("🌟 Highlight MVP", "**⭐ Task Force Director** or **🛡️ Tactical Enforcer**.", "Clutch clip receives **5 ⭐ reactions** in <#clips-and-highlights>."),
-            "daily grinder": ("🔥 Daily Grinder", "**Automated via MEE6 XP** (Level 5).", "Active chatters reaching Level 5."),
-            "community elite": ("💎 Community Elite", "**Automated via MEE6 XP** (Level 15).", "Active chatters reaching Level 15."),
-            "warzone champion": ("🏆 Warzone Champion", "**👑 High Command** or **⭐ Task Force Director**.", "Official tournament winners (inducted into <#hall-of-fame>)."),
-            "scrim contender": ("⚔️ Scrim Contender", "**🛡️ Tactical Enforcer** or **⭐ Task Force Director**.", "Active tournament competitors.")
-        }
-
-        for key, (r_name, r_who, r_crit) in role_inquiries.items():
-            if key in content or (key == "igl" and re.search(r'\bigl\b', content)):
-                embed = discord.Embed(title=f"📋 ROLE GUIDE: {r_name}", color=discord.Color.from_rgb(52, 152, 219))
-                embed.add_field(name="👑 Who Can Award This Role?", value=r_who, inline=False)
-                embed.add_field(name="🎯 Criteria", value=r_crit, inline=False)
-                embed.add_field(name="⚡ Assign Command", value=f"Say `assign @User {r_name}` in this channel.", inline=False)
-                await message.reply(embed=embed)
+                    await vault_ch.send(embed=alert_embed)
                 return
+            except:
+                pass
 
-        # General helpful fallback
-        fallback = discord.Embed(
-            title="🤖 APEX PREDATOR STAFF ASSISTANT",
-            description="I am your Staff Operations Assistant! Say `assign @User RoleName` or ask about any role or bot!",
-            color=discord.Color.from_rgb(231, 76, 60)
-        )
-        await message.reply(embed=fallback)
-
-    await apex_bot.process_commands(message)
-
-# ------------------------------------------------------------------------------
-# 📥 ON MEMBER JOIN: SEND PERSONALIZED DM GUIDE & LOG EVENT
-# ------------------------------------------------------------------------------
-@apex_bot.event
-async def on_member_join(member: discord.Member):
-    guild = member.guild
-    mod_logs = discord.utils.get(guild.text_channels, name="mod-logs")
-    audit_logs = discord.utils.get(guild.text_channels, name="audit-logs")
-    now_utc = datetime.datetime.now(datetime.timezone.utc)
-
-    if member.bot:
-        embed = discord.Embed(
-            title="🤖 BOT ADDED TO SERVER",
-            description=f"**Bot:** {member.mention} (`{member.name}`)\n**Bot ID:** `{member.id}`",
-            color=discord.Color.purple(),
-            timestamp=now_utc
-        )
-        if mod_logs: await mod_logs.send(embed=embed)
-        if audit_logs: await audit_logs.send(embed=embed)
-    else:
-        embed = discord.Embed(
-            title="📥 MEMBER JOINED SERVER",
-            description=f"**User:** {member.mention} (`{member.name}`)\n**Total Count:** `{guild.member_count}`",
-            color=discord.Color.green(),
-            timestamp=now_utc
-        )
-        if mod_logs: await mod_logs.send(embed=embed)
-        if audit_logs: await audit_logs.send(embed=embed)
-
-        try:
-            dm_embed = discord.Embed(
-                title=f"👑 WELCOME TO APEX UNIVERSE, OPERATOR {member.name.upper()}!",
-                description="Welcome to the **#1 Warzone & Tactical Gaming Community**!\n\n"
-                            "🔓 **STEP 1: UNLOCK THE SERVER**\n"
-                            "Click **`🛡️ Accept Rules & Verify Operator`** in **#verify-here** or **#rules** to enter your Gamertag!\n\n"
-                            "🎖️ **STEP 2: EARN ROLES**\n"
-                            "• Specializations: Self-select `@IGL`, `@Sniper`, `@Entry Fragger` in **#roles**.\n"
-                            "• Activity XP: Reach Level 5 for **@🔥 Daily Grinder**, Level 15 for **@💎 Community Elite**.\n"
-                            "• Clips: Post clutch clips in **#clips-and-highlights** for **@🎬 Clip Creator** & **@🌟 Highlight MVP**!\n\n"
-                            "🤖 **STEP 3: BOT USAGE**\n"
-                            "• MEE6: `!rank` | Tatsu: `t!profile`, `t!daily` | Green-Bot: `/play` in **#music-requests** | Dyno: `?afk`.",
-                color=discord.Color.from_rgb(231, 76, 60)
-            )
-            await member.send(embed=dm_embed)
-        except Exception as e:
-            print(f"DM Error: {e}")
-
-# Member Leave Event
-@apex_bot.event
-async def on_member_remove(member: discord.Member):
-    guild = member.guild
-    mod_logs = discord.utils.get(guild.text_channels, name="mod-logs")
-    audit_logs = discord.utils.get(guild.text_channels, name="audit-logs")
-    embed = discord.Embed(
-        title="📤 MEMBER LEFT SERVER",
-        description=f"**User:** {member.mention} (`{member.name}`)\n**Total Members:** `{guild.member_count}`",
-        color=discord.Color.red(),
-        timestamp=datetime.datetime.now(datetime.timezone.utc)
-    )
-    if mod_logs: await mod_logs.send(embed=embed)
-    if audit_logs: await audit_logs.send(embed=embed)
-
-# Message Delete / Edit
-@apex_bot.event
-async def on_message_delete(message: discord.Message):
-    if message.author.bot or not message.guild: return
-    audit_ch = discord.utils.get(message.guild.text_channels, name="audit-logs")
-    if audit_ch:
-        embed = discord.Embed(
-            title="🗑️ MESSAGE DELETED",
-            description=f"**Author:** {message.author.mention}\n**Channel:** {message.channel.mention}\n```\n{message.content[:1500]}\n```",
-            color=discord.Color.red(),
-            timestamp=datetime.datetime.now(datetime.timezone.utc)
-        )
-        await audit_ch.send(embed=embed)
-
-@apex_bot.event
-async def on_message_edit(before: discord.Message, after: discord.Message):
-    if before.author.bot or not before.guild or before.content == after.content: return
-    audit_ch = discord.utils.get(before.guild.text_channels, name="audit-logs")
-    if audit_ch:
-        embed = discord.Embed(
-            title="✏️ MESSAGE EDITED",
-            description=f"**Author:** {before.author.mention}\n**Channel:** {before.channel.mention}\n**Before:** {before.content[:600]}\n**After:** {after.content[:600]}",
-            color=discord.Color.orange(),
-            timestamp=datetime.datetime.now(datetime.timezone.utc)
-        )
-        await audit_ch.send(embed=embed)
+    await ai_pilot_bot.process_commands(message)
 
 # ==============================================================================
-# 🤖 BOT 2: AI PILOT 2.0 EVENTS & FEATURES
+# 📈 4. DYNAMIC MILESTONE GOAL & WEEKLY EXECUTIVE REPORT
 # ==============================================================================
+@tasks.loop(minutes=15)
+async def update_milestone_and_stats():
+    for guild in ai_pilot_bot.guilds:
+        if guild.id == 1539332811276947537: # AI Pilot Server
+            count = guild.member_count
+            next_goal = 100
+            if count >= 100: next_goal = 150
+            if count >= 150: next_goal = 200
+            if count >= 200: next_goal = 250
+            if count >= 250: next_goal = 500
+
+            for ch in guild.voice_channels:
+                if "goal" in ch.name.lower() or "🎯" in ch.name:
+                    try:
+                        await ch.edit(name=f"🎯 Goal: {next_goal} Pilots")
+                    except:
+                        pass
+
+# ==============================================================================
+# 🚀 READY EVENT FOR BOTH BOTS
+# ==============================================================================
+@apex_bot.event
+async def on_ready():
+    print(f"[APEX PREDATOR] Logged in as {apex_bot.user} (ID: {apex_bot.user.id})", flush=True)
+    apex_bot.add_view(ApexVerifyView())
+    apex_bot.add_view(TicketLaunchView())
+    apex_bot.add_view(TicketCloseView())
+
 @ai_pilot_bot.event
 async def on_ready():
     print(f"[AI PILOT 2.0] Logged in as {ai_pilot_bot.user} (ID: {ai_pilot_bot.user.id})", flush=True)
-
-    # Register persistent verification view for AI Pilot server
     ai_pilot_bot.add_view(AIPilotVerifyView())
-    ai_pilot_bot.add_view(ApexVerifyView())
-
-@ai_pilot_bot.command(name="pilotinfo")
-async def pilot_info(ctx):
-    await ctx.send("✈️ **AI Pilot Cloud Engine Active** • Dual-Bot Cluster Online 24/7.")
+    ai_pilot_bot.add_view(FlightStandardsRulesView())
+    if not update_milestone_and_stats.is_running():
+        update_milestone_and_stats.start()
 
 # ==============================================================================
-# 🚀 MULTI-BOT CONCURRENT LAUNCHER
+# 🚀 DUAL-BOT CLUSTER RUNTIME
 # ==============================================================================
 async def start_dual_bots():
-    print("[CLOUD RUNTIME] Launching APEX PREDATOR & AI PILOT dual-bot cluster...", flush=True)
-    tasks = []
+    print("[CLOUD RUNTIME] Launching APEX PREDATOR & AI PILOT 2.0 dual-bot cluster...", flush=True)
+    tasks_list = []
     if APEX_TOKEN:
-        tasks.append(apex_bot.start(APEX_TOKEN))
+        tasks_list.append(apex_bot.start(APEX_TOKEN))
     if AI_PILOT_TOKEN:
-        tasks.append(ai_pilot_bot.start(AI_PILOT_TOKEN))
-    
-    if tasks:
-        await asyncio.gather(*tasks)
+        tasks_list.append(ai_pilot_bot.start(AI_PILOT_TOKEN))
+
+    if tasks_list:
+        await asyncio.gather(*tasks_list)
     else:
-        print("[ERROR] No bot tokens provided in environment variables!", flush=True)
+        print("[ERROR] No bot tokens found!", flush=True)
 
 if __name__ == "__main__":
     flask_thread = Thread(target=run_flask, daemon=True)
