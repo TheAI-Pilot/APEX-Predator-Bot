@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import datetime
+import random
 import re
 from threading import Thread
 import discord
@@ -252,13 +253,65 @@ class PlatformAndPingsView(discord.ui.View):
             await interaction.response.send_message(f"✅ Subscribed to **{role.mention}**!", ephemeral=True)
 
 # ------------------------------------------------------------------------------
-# 🎙️ REAL-TIME SQUAD RADAR IN VOICE CHANNELS (APEX UNIVERSE)
+# 🎙️ REAL-TIME SQUAD RADAR & AUTO-DRAFT IN VOICE CHANNELS (APEX UNIVERSE)
 # ------------------------------------------------------------------------------
 @apex_bot.event
 async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
     if member.bot:
         return
 
+    # Auto-Draft Logic when joining a Voice Channel (except Squad Comms Alpha/Bravo and Gulag)
+    if after.channel and isinstance(after.channel, discord.VoiceChannel):
+        vc_name_lower = after.channel.name.lower()
+        is_alpha = "alpha" in vc_name_lower and "comms" in vc_name_lower
+        is_bravo = "bravo" in vc_name_lower and "comms" in vc_name_lower
+        is_gulag = "gulag" in vc_name_lower or "afk" in vc_name_lower
+
+        if not (is_alpha or is_bravo or is_gulag):
+            # Check if member has any squad specialization role
+            has_squad_role = any(r.name in SQUAD_ROLE_PREFIXES for r in member.roles)
+            if not has_squad_role:
+                # Prioritize roles missing in this specific voice lobby
+                roles_present_in_vc = []
+                for other_m in after.channel.members:
+                    for r_name in SQUAD_ROLE_PREFIXES.keys():
+                        if any(r.name == r_name for r in other_m.roles):
+                            roles_present_in_vc.append(r_name)
+
+                missing_in_lobby = [r for r in SQUAD_ROLE_PREFIXES.keys() if r not in roles_present_in_vc]
+                if missing_in_lobby:
+                    chosen_role_name = random.choice(missing_in_lobby)
+                else:
+                    chosen_role_name = random.choice(list(SQUAD_ROLE_PREFIXES.keys()))
+
+                chosen_role = discord.utils.get(member.guild.roles, name=chosen_role_name)
+                if chosen_role:
+                    try:
+                        await member.add_roles(chosen_role, reason=f"Auto-drafted random squad role upon joining {after.channel.name}")
+                        await update_tactical_callsign_nickname(member, chosen_role_name, removing=False)
+                        print(f"[AUTO-DRAFT] Assigned {chosen_role_name} to {member.name} in #{after.channel.name}", flush=True)
+
+                        # Send tactical auto-draft dossier DM to member
+                        try:
+                            dm_embed = discord.Embed(
+                                title="🎖️ SQUAD AUTO-DRAFT — COMBAT ROLE ASSIGNED",
+                                description=f"Welcome to **{after.channel.name}** in **{member.guild.name}**!\n\n"
+                                            f"Since you joined without an active squad specialization, **APEX PREDATOR** has automatically drafted you into:\n\n"
+                                            f"# ✨ **{chosen_role_name}** ✨\n\n"
+                                            f"🏷️ **Tactical Call-Sign:** **`{SQUAD_ROLE_PREFIXES[chosen_role_name]} {member.name}`**\n"
+                                            f"*(Visible to your entire fireteam in voice comms & text chats)*\n\n"
+                                            f"🔄 *Want a different combat specialty? You can switch anytime in <#specialty-roles>!*",
+                                f"color=discord.Color.from_rgb(52, 152, 219)",
+                                timestamp=datetime.datetime.now(datetime.timezone.utc)
+                            )
+                            dm_embed.set_footer(text="Apex Universe Auto-Draft System • Tactical Fireteams")
+                            await member.send(embed=dm_embed)
+                        except:
+                            pass
+                    except Exception as e:
+                        print(f"[AUTO-DRAFT ERROR] {member.name}: {e}", flush=True)
+
+    # Update Live Squad Radar for all affected channels
     channels_to_update = set()
     if before.channel and isinstance(before.channel, discord.VoiceChannel):
         channels_to_update.add(before.channel)
