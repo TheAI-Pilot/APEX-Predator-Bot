@@ -238,7 +238,6 @@ class AIPilotVerificationModal(discord.ui.Modal, title="✈️ Step 1: Pilot Ver
         guild = interaction.guild
         member = interaction.user
 
-        # Assign Rules Reviewer role to unlock #rules for Step 2
         rules_role = discord.utils.get(guild.roles, name="📑 Rules Reviewer") or discord.utils.get(guild.roles, name="Rules Reviewer")
         if rules_role:
             try:
@@ -253,7 +252,6 @@ class AIPilotVerificationModal(discord.ui.Modal, title="✈️ Step 1: Pilot Ver
         email_val = self.email.value.strip() or "None Provided"
         bg_val = self.background.value.strip()
 
-        # Log to confidential #owner-vault
         vault_ch = discord.utils.get(guild.text_channels, name="owner-vault")
         if vault_ch:
             vault_embed = discord.Embed(
@@ -482,7 +480,7 @@ async def on_message(message: discord.Message):
     await ai_pilot_bot.process_commands(message)
 
 # ==============================================================================
-# 📈 4. DYNAMIC MILESTONE GOAL & WEEKLY EXECUTIVE REPORT
+# 🕒 4. AUTOMATIC DAILY CONTENT ENGINE & MILESTONE GOAL (AI PILOT)
 # ==============================================================================
 @tasks.loop(minutes=15)
 async def update_milestone_and_stats():
@@ -502,6 +500,27 @@ async def update_milestone_and_stats():
                     except:
                         pass
 
+@tasks.loop(hours=6)
+async def scheduled_daily_content():
+    guild = discord.utils.get(ai_pilot_bot.guilds, id=1539332811276947537)
+    if not guild: return
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    
+    # Post periodic trivia challenge
+    trivia_ch = discord.utils.get(guild.text_channels, name="daily-ai-challenge")
+    if trivia_ch:
+        t_embed = discord.Embed(
+            title="🏆 DAILY AI TRIVIA CHALLENGE",
+            description="**Question**: In AI Agents, what is the difference between ReAct and Plan-and-Solve architectures?\n\n"
+                        "💬 *Drop your insights below! Best answers earn @⭐ Contributor reputation points!*",
+            color=discord.Color.from_rgb(241, 196, 15),
+            timestamp=now_utc
+        )
+        try:
+            await trivia_ch.send(embed=t_embed)
+        except:
+            pass
+
 # ==============================================================================
 # 🚀 READY EVENT FOR BOTH BOTS
 # ==============================================================================
@@ -519,6 +538,8 @@ async def on_ready():
     ai_pilot_bot.add_view(FlightStandardsRulesView())
     if not update_milestone_and_stats.is_running():
         update_milestone_and_stats.start()
+    if not scheduled_daily_content.is_running():
+        scheduled_daily_content.start()
 
 # ==============================================================================
 # 🚀 DUAL-BOT CLUSTER RUNTIME
