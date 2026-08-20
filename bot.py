@@ -200,6 +200,28 @@ class PlatformAndPingsView(discord.ui.View):
             await member.add_roles(role, reason="Self-claimed via Specialty Roles Hub")
             await interaction.response.send_message(f"✅ Subscribed to **{role.mention}**!", ephemeral=True)
 
+# ------------------------------------------------------------------------------
+# 🧹 AUTO-CLEANER: 24-HOUR AUTO-PURGE FOR SPECIALTY ROLES CHANNEL
+# ------------------------------------------------------------------------------
+@tasks.loop(hours=6)
+async def auto_clean_specialty_roles():
+    for guild in apex_bot.guilds:
+        roles_ch = find_ch(guild, "role") or find_ch(guild, "specialty")
+        if roles_ch:
+            cutoff = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=24)
+            try:
+                async for msg in roles_ch.history(limit=50):
+                    is_master_embed = False
+                    if msg.author.id == apex_bot.user.id and msg.embeds:
+                        title = msg.embeds[0].title or ""
+                        if any(k in title for k in ["SQUAD COMBAT ROLES", "SERVER BOOSTER", "PLATFORM & NOTIFICATION"]):
+                            is_master_embed = True
+
+                    if not is_master_embed and msg.created_at < cutoff:
+                        await msg.delete()
+            except Exception as e:
+                print(f"[CLEANER ERROR] {e}", flush=True)
+
 # ==============================================================================
 # 🛡️ 1. APEX PREDATOR — ONBOARDING, VERIFICATION & TICKETS (Apex Universe)
 # ==============================================================================
@@ -675,7 +697,7 @@ async def on_message(message: discord.Message):
                     f"🚨 {message.author.mention} **Security Alert:** Your message contained an exposed API key/secret and was instantly deleted by **AI Pilot Auto-Shield** for your safety!",
                     delete_after=10
                 )
-                vault_ch = find_ch(message.guild, "owner-vault") or find_ch(message.guild, "vault")
+                vault_ch = find_ch(message.guild, "owner-vault") or find_ch(guild, "vault")
                 if vault_ch:
                     alert_embed = discord.Embed(
                         title="🚨 SECRET TOKEN AUTO-SHIELD TRIGGERED",
@@ -762,6 +784,8 @@ async def on_ready():
         apex_bot.add_view(TicketCloseView())
         apex_bot.add_view(SquadRolesView())
         apex_bot.add_view(PlatformAndPingsView())
+        if not auto_clean_specialty_roles.is_running():
+            auto_clean_specialty_roles.start()
         apex_ready_initialized = True
 
 @ai_pilot_bot.event
