@@ -58,6 +58,14 @@ apex_ready_initialized = False
 ai_pilot_ready_initialized = False
 last_trivia_dispatched_date = None
 
+# Helper to find channels by partial keywords
+def find_ch(guild: discord.Guild, *keywords):
+    for ch in guild.text_channels:
+        name_lower = ch.name.lower()
+        if all(k.lower() in name_lower for k in keywords):
+            return ch
+    return None
+
 # ==============================================================================
 # 🎉 UNIVERSAL CELEBRATORY ROLE PROMOTION DIRECT MESSAGE DISPATCHER
 # ==============================================================================
@@ -151,7 +159,7 @@ class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Veri
         gamertag_val = self.gamertag.value.strip()
         clantag_val = self.clantag.value.strip() or "None"
 
-        welcome_ch = discord.utils.get(guild.text_channels, name="welcome")
+        welcome_ch = find_ch(guild, "welcome")
         if welcome_ch:
             welcome_embed = discord.Embed(
                 title=f"🎉 WELCOME OPERATOR {member.name.upper()}!",
@@ -169,7 +177,7 @@ class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Veri
             welcome_embed.set_thumbnail(url=member.display_avatar.url)
             await welcome_ch.send(embed=welcome_embed)
 
-        staff_chat = discord.utils.get(guild.text_channels, name="staff-chat")
+        staff_chat = find_ch(guild, "staff")
         if staff_chat:
             staff_embed = discord.Embed(
                 title="🛡️ NEW OPERATOR ONBOARDED & LOGGED",
@@ -184,7 +192,7 @@ class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Veri
             staff_embed.set_footer(text="Operator Database • Staff Record")
             await staff_chat.send(embed=staff_embed)
 
-        gt_channel = discord.utils.get(guild.text_channels, name="gamer-tags")
+        gt_channel = find_ch(guild, "gamer-tag") or find_ch(guild, "gamertag")
         if gt_channel:
             gt_embed = discord.Embed(
                 description=f"🎮 **{member.mention}** registered Activision ID: **`{gamertag_val}`** | Clan: `{clantag_val}`",
@@ -216,7 +224,7 @@ class TicketCloseView(discord.ui.View):
         guild = interaction.guild
         await interaction.response.send_message("🔒 Closing ticket in 5 seconds...", ephemeral=False)
         await asyncio.sleep(5)
-        ticket_logs = discord.utils.get(guild.text_channels, name="ticket-logs")
+        ticket_logs = find_ch(guild, "ticket", "transcript") or find_ch(guild, "ticket-logs")
         if ticket_logs:
             messages = [msg async for msg in channel.history(limit=100, oldest_first=True)]
             transcript = "\n".join([f"[{m.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {m.author.name}: {m.content}" for m in messages])
@@ -237,7 +245,7 @@ class TicketLaunchView(discord.ui.View):
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
         member = interaction.user
-        staff_cat = discord.utils.get(guild.categories, name="🛡️ STAFF ONLY")
+        staff_cat = next((cat for cat in guild.categories if "command" in cat.name.lower() or "staff" in cat.name.lower()), None)
         admin_role = discord.utils.get(guild.roles, name="👑 High Command") or discord.utils.get(guild.roles, name="Admin")
         mod_role = discord.utils.get(guild.roles, name="🛡️ Tactical Enforcer") or discord.utils.get(guild.roles, name="Moderator")
 
@@ -280,8 +288,8 @@ async def on_member_update(before: discord.Member, after: discord.Member):
 
         # Log to mod-logs and audit-logs
         guild = after.guild
-        audit_ch = discord.utils.get(guild.text_channels, name="audit-logs")
-        mod_ch = discord.utils.get(guild.text_channels, name="mod-logs")
+        audit_ch = find_ch(guild, "audit")
+        mod_ch = find_ch(guild, "moderation") or find_ch(guild, "mod-log")
 
         embed = discord.Embed(
             title="🎖️ ROLE AWARDED & CELEBRATED",
@@ -347,7 +355,7 @@ class AIPilotVerificationModal(discord.ui.Modal, title="✈️ Step 1: Pilot Ver
         email_val = self.email.value.strip() or "None Provided"
         bg_val = self.background.value.strip()
 
-        vault_ch = discord.utils.get(guild.text_channels, name="owner-vault")
+        vault_ch = find_ch(guild, "owner-vault") or find_ch(guild, "vault")
         if vault_ch:
             vault_embed = discord.Embed(
                 title="🔒 PILOT ONBOARDING DOSSIER — OWNER VAULT",
@@ -429,7 +437,7 @@ class FlightStandardsRulesView(discord.ui.View):
             pass
 
         # Welcome Card in #welcome
-        welcome_ch = discord.utils.get(guild.text_channels, name="welcome")
+        welcome_ch = find_ch(guild, "welcome")
         if welcome_ch:
             w_embed = discord.Embed(
                 title=f"✈️ NEW PILOT CLEARED FOR TAKEOFF — {member.name.upper()}!",
@@ -462,8 +470,8 @@ async def on_member_update(before: discord.Member, after: discord.Member):
 
         # Log to owner-vault and moderation-log
         guild = after.guild
-        vault_ch = discord.utils.get(guild.text_channels, name="owner-vault")
-        mod_ch = discord.utils.get(guild.text_channels, name="moderation-log")
+        vault_ch = find_ch(guild, "owner-vault") or find_ch(guild, "vault")
+        mod_ch = find_ch(guild, "moderation") or find_ch(guild, "mod-log")
 
         embed = discord.Embed(
             title="🎖️ PILOT MERIT PROMOTION & CELEBRATION",
@@ -590,7 +598,7 @@ async def on_message(message: discord.Message):
                     f"🚨 {message.author.mention} **Security Alert:** Your message contained an exposed API key/secret and was instantly deleted by **AI Pilot Auto-Shield** for your safety!",
                     delete_after=10
                 )
-                vault_ch = discord.utils.get(message.guild.text_channels, name="owner-vault")
+                vault_ch = find_ch(message.guild, "owner-vault") or find_ch(message.guild, "vault")
                 if vault_ch:
                     alert_embed = discord.Embed(
                         title="🚨 SECRET TOKEN AUTO-SHIELD TRIGGERED",
@@ -633,7 +641,6 @@ async def scheduled_daily_content():
     global last_trivia_dispatched_date
     today_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     
-    # Strictly only post once per calendar day
     if last_trivia_dispatched_date == today_str:
         return
 
@@ -641,13 +648,12 @@ async def scheduled_daily_content():
     if not guild: return
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     
-    trivia_ch = discord.utils.get(guild.text_channels, name="daily-ai-challenge")
+    trivia_ch = find_ch(guild, "daily-ai-challenge") or find_ch(guild, "challenge")
     if trivia_ch:
-        # Check last message in channel to prevent duplicates
         try:
             async for m in trivia_ch.history(limit=3):
                 if m.author.id == ai_pilot_bot.user.id and m.embeds and "DAILY AI TRIVIA" in m.embeds[0].title:
-                    if (now_utc - m.created_at.replace(tzinfo=datetime.timezone.utc)).total_seconds() < 21600: # 6 hours
+                    if (now_utc - m.created_at.replace(tzinfo=datetime.timezone.utc)).total_seconds() < 21600:
                         last_trivia_dispatched_date = today_str
                         return
         except:
