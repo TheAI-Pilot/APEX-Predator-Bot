@@ -46,6 +46,7 @@ intents.guilds = True
 intents.members = True
 intents.messages = True
 intents.message_content = True
+intents.voice_states = True
 
 # 1. Primary Bot: APEX PREDATOR (Apex Universe)
 apex_bot = commands.Bot(command_prefix="!", intents=intents)
@@ -249,6 +250,72 @@ class PlatformAndPingsView(discord.ui.View):
         else:
             await member.add_roles(role, reason="Self-claimed via Specialty Roles Hub")
             await interaction.response.send_message(f"✅ Subscribed to **{role.mention}**!", ephemeral=True)
+
+# ------------------------------------------------------------------------------
+# 🎙️ REAL-TIME SQUAD RADAR IN VOICE CHANNELS (APEX UNIVERSE)
+# ------------------------------------------------------------------------------
+@apex_bot.event
+async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+    if member.bot:
+        return
+
+    channels_to_update = set()
+    if before.channel and isinstance(before.channel, discord.VoiceChannel):
+        channels_to_update.add(before.channel)
+    if after.channel and isinstance(after.channel, discord.VoiceChannel):
+        channels_to_update.add(after.channel)
+
+    for vc in channels_to_update:
+        members_in_vc = [m for m in vc.members if not m.bot]
+        if not members_in_vc:
+            continue
+
+        radar_embed = discord.Embed(
+            title=f"🎙️ {vc.name.upper()} — LIVE SQUAD ROSTER ({len(members_in_vc)}/{vc.user_limit or 4})",
+            color=discord.Color.from_rgb(52, 152, 219),
+            timestamp=datetime.datetime.now(datetime.timezone.utc)
+        )
+
+        roster_lines = []
+        claimed_specialties = set()
+
+        for m in members_in_vc:
+            role_tag = "⚠️ *No Role (Pick in #specialty-roles)*"
+            for r_name, prefix in SQUAD_ROLE_PREFIXES.items():
+                if any(r.name == r_name for r in m.roles):
+                    role_tag = f"**{r_name}**"
+                    claimed_specialties.add(r_name)
+                    break
+
+            platform_tag = ""
+            if any("PC" in r.name for r in m.roles): platform_tag = " `[💻 PC]`"
+            elif any("Console" in r.name for r in m.roles): platform_tag = " `[🎮 Console]`"
+
+            roster_lines.append(f"• {m.mention} ➔ {role_tag}{platform_tag}")
+
+        radar_embed.description = "\n".join(roster_lines)
+
+        if len(claimed_specialties) >= 4:
+            radar_embed.add_field(name="🔥 SQUAD SYNERGY", value="✨ **100% PERFECT SQUAD COMPOSITION!** (All 4 Combat Roles Filled)", inline=False)
+        else:
+            missing = [prefix for name, prefix in SQUAD_ROLE_PREFIXES.items() if name not in claimed_specialties]
+            radar_embed.add_field(name="🎯 SQUAD SYNERGY STATUS", value=f"Active Roles: `{len(claimed_specialties)}/4` | Missing: {' '.join(missing) if missing else 'None'}", inline=False)
+
+        radar_embed.set_footer(text="Apex Universe Tactical Voice Radar • Live Telemetry")
+
+        try:
+            recent_msg = None
+            async for msg in vc.history(limit=5):
+                if msg.author.id == apex_bot.user.id and msg.embeds and "LIVE SQUAD ROSTER" in (msg.embeds[0].title or ""):
+                    recent_msg = msg
+                    break
+            
+            if recent_msg:
+                await recent_msg.edit(embed=radar_embed)
+            else:
+                await vc.send(embed=radar_embed)
+        except Exception as e:
+            print(f"[VOICE RADAR] Could not send to voice chat #{vc.name}: {e}", flush=True)
 
 # ------------------------------------------------------------------------------
 # 🧹 AUTO-CLEANER: 24-HOUR AUTO-PURGE FOR SPECIALTY ROLES CHANNEL
@@ -602,7 +669,7 @@ class FlightStandardsRulesView(discord.ui.View):
                 timestamp=datetime.datetime.now(datetime.timezone.utc)
             )
             w_embed.set_thumbnail(url=member.display_avatar.url)
-            await welcome_ch.send(embed=welcome_ch)
+            await welcome_ch.send(embed=w_embed)
 
         await interaction.response.send_message(
             "🎉 **Flight Standards Accepted!** You are now a **@✈️ Verified Pilot** with full server access. Welcome aboard!",
