@@ -124,6 +124,83 @@ async def send_role_promotion_celebration(member: discord.Member, role: discord.
         print(f"[CELEBRATION] Error sending DM to {member.name}: {e}", flush=True)
 
 # ==============================================================================
+# 🏷️ APEX UNIVERSE — INTERACTIVE SELF-CLAIMABLE ROLE BUTTON VIEWS
+# ==============================================================================
+class SquadRolesView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🧠 IGL (Shot-Caller)", style=discord.ButtonStyle.primary, custom_id="claim_role_igl")
+    async def btn_igl(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.toggle_role(interaction, "🧠 IGL (In-Game Leader)")
+
+    @discord.ui.button(label="🎯 Sniper Specialist", style=discord.ButtonStyle.primary, custom_id="claim_role_sniper")
+    async def btn_sniper(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.toggle_role(interaction, "🎯 Sniper Specialist")
+
+    @discord.ui.button(label="⚡ Entry Fragger", style=discord.ButtonStyle.danger, custom_id="claim_role_entry")
+    async def btn_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.toggle_role(interaction, "⚡ Entry Fragger")
+
+    @discord.ui.button(label="🛡️ Support / Anchor", style=discord.ButtonStyle.success, custom_id="claim_role_support")
+    async def btn_support(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.toggle_role(interaction, "🛡️ Support / Anchor")
+
+    async def toggle_role(self, interaction: discord.Interaction, role_name: str):
+        guild = interaction.guild
+        member = interaction.user
+        role = discord.utils.get(guild.roles, name=role_name)
+        if not role:
+            await interaction.response.send_message(f"❌ Role `{role_name}` not found!", ephemeral=True)
+            return
+
+        if role in member.roles:
+            await member.remove_roles(role, reason="Self-unclaimed via Specialty Roles Hub")
+            await interaction.response.send_message(f"🗑️ Removed **{role.mention}** from your profile.", ephemeral=True)
+        else:
+            await member.add_roles(role, reason="Self-claimed via Specialty Roles Hub")
+            await interaction.response.send_message(f"✅ Awarded **{role.mention}**! Check your profile.", ephemeral=True)
+
+class PlatformAndPingsView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="💻 PC Operator", style=discord.ButtonStyle.secondary, custom_id="claim_role_pc")
+    async def btn_pc(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.toggle_role(interaction, "💻 PC Operator")
+
+    @discord.ui.button(label="🎮 Console Operator", style=discord.ButtonStyle.secondary, custom_id="claim_role_console")
+    async def btn_console(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.toggle_role(interaction, "🎮 Console Operator")
+
+    @discord.ui.button(label="🔔 Scrim & Tourney Ping", style=discord.ButtonStyle.secondary, custom_id="claim_role_scrim")
+    async def btn_scrim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.toggle_role(interaction, "🔔 Scrim & Tournament Ping")
+
+    @discord.ui.button(label="🔔 Meta Patch Ping", style=discord.ButtonStyle.secondary, custom_id="claim_role_patch")
+    async def btn_patch(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.toggle_role(interaction, "🔔 Meta Patch Ping")
+
+    @discord.ui.button(label="🔔 Stream Alert Ping", style=discord.ButtonStyle.secondary, custom_id="claim_role_stream")
+    async def btn_stream(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.toggle_role(interaction, "🔔 Stream Alert Ping")
+
+    async def toggle_role(self, interaction: discord.Interaction, role_name: str):
+        guild = interaction.guild
+        member = interaction.user
+        role = discord.utils.get(guild.roles, name=role_name)
+        if not role:
+            await interaction.response.send_message(f"❌ Role `{role_name}` not found!", ephemeral=True)
+            return
+
+        if role in member.roles:
+            await member.remove_roles(role, reason="Self-unclaimed via Specialty Roles Hub")
+            await interaction.response.send_message(f"🗑️ Removed **{role.mention}** from your preferences.", ephemeral=True)
+        else:
+            await member.add_roles(role, reason="Self-claimed via Specialty Roles Hub")
+            await interaction.response.send_message(f"✅ Subscribed to **{role.mention}**!", ephemeral=True)
+
+# ==============================================================================
 # 🛡️ 1. APEX PREDATOR — ONBOARDING, VERIFICATION & TICKETS (Apex Universe)
 # ==============================================================================
 class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Verify Operator"):
@@ -683,6 +760,8 @@ async def on_ready():
         apex_bot.add_view(ApexVerifyView())
         apex_bot.add_view(TicketLaunchView())
         apex_bot.add_view(TicketCloseView())
+        apex_bot.add_view(SquadRolesView())
+        apex_bot.add_view(PlatformAndPingsView())
         apex_ready_initialized = True
 
 @ai_pilot_bot.event
