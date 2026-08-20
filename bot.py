@@ -54,9 +54,9 @@ apex_bot = commands.Bot(command_prefix="!", intents=intents)
 ai_pilot_bot = commands.Bot(command_prefix=".", intents=intents)
 
 # ==============================================================================
-# 🛡️ APEX PREDATOR — OPERATOR VERIFICATION MODAL & VIEW
+# 🛡️ APEX PREDATOR — OPERATOR VERIFICATION MODAL & VIEW (Apex Universe)
 # ==============================================================================
-class VerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Verify Operator"):
+class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Verify Operator"):
     gamertag = discord.ui.TextInput(
         label="Activision Gamertag",
         placeholder="e.g. GhostOperator#1234567",
@@ -148,13 +148,126 @@ class VerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Verify O
             ephemeral=True
         )
 
-class VerifyView(discord.ui.View):
+class ApexVerifyView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="🛡️ Accept Rules & Verify Operator", style=discord.ButtonStyle.success, custom_id="verify_operator_btn")
     async def verify_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(VerificationModal())
+        await interaction.response.send_modal(ApexVerificationModal())
+
+# ==============================================================================
+# ✈️ AI PILOT 2.0 — VERIFICATION MODAL & VIEW (AI Pilot Server)
+# ==============================================================================
+class AIPilotVerificationModal(discord.ui.Modal, title="✈️ Pilot Verification & Onboarding"):
+    name_handle = discord.ui.TextInput(
+        label="Full Name / Creator Handle",
+        placeholder="e.g. Alex Hunter / @AlexAI",
+        required=True,
+        max_length=50
+    )
+    phone = discord.ui.TextInput(
+        label="Phone Number",
+        placeholder="e.g. +1 (555) 123-4567",
+        required=True,
+        max_length=30
+    )
+    email = discord.ui.TextInput(
+        label="Email Address (Optional)",
+        placeholder="e.g. alex@aipilot.io (for drops & templates)",
+        required=False,
+        max_length=60
+    )
+    background = discord.ui.TextInput(
+        label="DOB / AI Background & Interests",
+        placeholder="e.g. 1998-05-12 / Automation, Prompting, LLMs",
+        required=True,
+        style=discord.TextStyle.paragraph,
+        max_length=200
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        member = interaction.user
+
+        # 1. Assign Verified Pilot role and remove New Arrival if present
+        pilot_role = discord.utils.get(guild.roles, name="✈️ Verified Pilot") or discord.utils.get(guild.roles, name="Verified Pilot")
+        new_arrival_role = discord.utils.get(guild.roles, name="🛰️ New Arrival")
+
+        if pilot_role:
+            try:
+                await member.add_roles(pilot_role, reason="AI Pilot Gateway Verification Submitted")
+            except Exception as e:
+                print(f"Error adding Pilot role: {e}", flush=True)
+
+        if new_arrival_role and new_arrival_role in member.roles:
+            try:
+                await member.remove_roles(new_arrival_role, reason="Completed Verification")
+            except:
+                pass
+
+        joined_str = member.joined_at.strftime("%Y-%m-%d %H:%M:%S UTC") if member.joined_at else "Unknown"
+        created_str = member.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+        name_val = self.name_handle.value.strip()
+        phone_val = self.phone.value.strip()
+        email_val = self.email.value.strip() or "None Provided"
+        bg_val = self.background.value.strip()
+
+        # 2. Log to #owner-vault (confidential private log)
+        vault_ch = discord.utils.get(guild.text_channels, name="owner-vault")
+        if vault_ch:
+            vault_embed = discord.Embed(
+                title="🔒 PILOT ONBOARDING DOSSIER — OWNER VAULT",
+                description=f"New member {member.mention} has completed Gateway Verification!",
+                color=discord.Color.from_rgb(88, 101, 242),
+                timestamp=datetime.datetime.now(datetime.timezone.utc)
+            )
+            vault_embed.set_thumbnail(url=member.display_avatar.url)
+            vault_embed.add_field(name="👤 Discord User", value=f"`{member.name}` ({member.mention})", inline=True)
+            vault_embed.add_field(name="🆔 Discord ID", value=f"`{member.id}`", inline=True)
+            vault_embed.add_field(name="🏷️ Full Name / Handle", value=f"**`{name_val}`**", inline=False)
+            vault_embed.add_field(name="📱 Phone Number", value=f"**`{phone_val}`**", inline=True)
+            vault_embed.add_field(name="📧 Email Address", value=f"`{email_val}`", inline=True)
+            vault_embed.add_field(name="🧠 Background / Interests", value=f"```\n{bg_val}\n```", inline=False)
+            vault_embed.add_field(name="📅 Joined Server", value=f"`{joined_str}`", inline=True)
+            vault_embed.add_field(name="👶 Account Age", value=f"`{created_str}`", inline=True)
+            vault_embed.set_footer(text="AI Pilot Security Core • Vault Record")
+            await vault_ch.send(embed=vault_embed)
+
+        # 3. Post public welcome to #welcome
+        welcome_ch = discord.utils.get(guild.text_channels, name="welcome")
+        if welcome_ch:
+            w_embed = discord.Embed(
+                title=f"✈️ WELCOME PILOT {name_val.upper()}!",
+                description=f"Welcome {member.mention} to **AI Pilot ✈️🤖**!\n\n"
+                            f"✅ **Gateway Verification Cleared**\n"
+                            f"🎯 **Role:** @✈️ Verified Pilot\n\n"
+                            f"### 🚀 Quick Flight Plan:\n"
+                            f"1. Choose your specialty roles in <#choose-your-path>.\n"
+                            f"2. Introduce yourself in <#introductions>.\n"
+                            f"3. Drop into <#general> or explore our prompt libraries!",
+                color=discord.Color.from_rgb(46, 204, 113),
+                timestamp=datetime.datetime.now(datetime.timezone.utc)
+            )
+            w_embed.set_thumbnail(url=member.display_avatar.url)
+            await welcome_ch.send(embed=w_embed)
+
+        # 4. Ephemeral confirmation
+        await interaction.response.send_message(
+            f"✅ **Pilot Verification Submitted Successfully!**\n\n"
+            f"Welcome aboard, **{name_val}**! You now hold the **@✈️ Verified Pilot** role and all 60+ channels are unlocked.\n\n"
+            f"👉 Check out <#choose-your-path> to pick your AI domains!\n"
+            f"👉 Jump into <#general> to chat with fellow builders.",
+            ephemeral=True
+        )
+
+class AIPilotVerifyView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="✈️ Start Pilot Verification", style=discord.ButtonStyle.success, custom_id="ai_pilot_exclusive_verify_btn")
+    async def pilot_verify_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AIPilotVerificationModal())
 
 # ==============================================================================
 # 🎫 APEX PREDATOR — TICKET SYSTEM
@@ -237,7 +350,7 @@ class TicketLaunchView(discord.ui.View):
 async def on_ready():
     print(f"[APEX PREDATOR] Logged in as {apex_bot.user} (ID: {apex_bot.user.id})", flush=True)
 
-    apex_bot.add_view(VerifyView())
+    apex_bot.add_view(ApexVerifyView())
     apex_bot.add_view(TicketLaunchView())
     apex_bot.add_view(TicketCloseView())
 
@@ -281,7 +394,7 @@ async def on_ready():
                 color=discord.Color.from_rgb(46, 204, 113)
             )
             verify_embed.set_footer(text="Apex Universe Automated Security • Click below to register")
-            await verify_ch.send(embed=verify_embed, view=VerifyView())
+            await verify_ch.send(embed=verify_embed, view=ApexVerifyView())
 
 # ------------------------------------------------------------------------------
 # 🧠 ON MESSAGE: PREDATOR CHAT INTELLIGENCE & ROLE ASSIGNMENT ENGINE
@@ -454,6 +567,10 @@ async def on_message_edit(before: discord.Message, after: discord.Message):
 @ai_pilot_bot.event
 async def on_ready():
     print(f"[AI PILOT 2.0] Logged in as {ai_pilot_bot.user} (ID: {ai_pilot_bot.user.id})", flush=True)
+
+    # Register persistent verification view for AI Pilot server
+    ai_pilot_bot.add_view(AIPilotVerifyView())
+    ai_pilot_bot.add_view(ApexVerifyView())
 
 @ai_pilot_bot.command(name="pilotinfo")
 async def pilot_info(ctx):
