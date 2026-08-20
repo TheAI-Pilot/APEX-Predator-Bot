@@ -67,6 +67,43 @@ def find_ch(guild: discord.Guild, *keywords):
     return None
 
 # ==============================================================================
+# 🎖️ TACTICAL SQUAD CALL-SIGN NICKNAME ENGINE
+# ==============================================================================
+SQUAD_ROLE_PREFIXES = {
+    "🧠 IGL (In-Game Leader)": "[🧠 IGL]",
+    "🎯 Sniper Specialist": "[🎯 Sniper]",
+    "⚡ Entry Fragger": "[⚡ Entry]",
+    "🛡️ Support / Anchor": "[🛡️ Support]"
+}
+
+async def update_tactical_callsign_nickname(member: discord.Member, role_name: str, removing: bool = False):
+    guild = member.guild
+    if member.id == guild.owner_id:
+        return  # Cannot edit server founder's nickname via Discord API
+
+    current_nick = member.display_name
+    clean_name = current_nick
+    for prefix in SQUAD_ROLE_PREFIXES.values():
+        if clean_name.startswith(prefix):
+            clean_name = clean_name[len(prefix):].strip()
+
+    if removing:
+        new_nick = clean_name if clean_name != member.name else None
+    else:
+        prefix = SQUAD_ROLE_PREFIXES.get(role_name)
+        new_nick = f"{prefix} {clean_name}" if prefix else clean_name
+
+    if new_nick:
+        new_nick = new_nick[:32]
+
+    if new_nick != current_nick:
+        try:
+            await member.edit(nick=new_nick, reason=f"Tactical Call-sign update: {role_name}")
+            print(f"[CALL-SIGN] Updated {member.name} ➔ '{new_nick}'", flush=True)
+        except Exception as e:
+            print(f"[CALL-SIGN ERROR] {member.name}: {e}", flush=True)
+
+# ==============================================================================
 # 🎉 UNIVERSAL CELEBRATORY ROLE PROMOTION DIRECT MESSAGE DISPATCHER
 # ==============================================================================
 async def send_role_promotion_celebration(member: discord.Member, role: discord.Role):
@@ -156,10 +193,23 @@ class SquadRolesView(discord.ui.View):
 
         if role in member.roles:
             await member.remove_roles(role, reason="Self-unclaimed via Specialty Roles Hub")
-            await interaction.response.send_message(f"🗑️ Removed **{role.mention}** from your profile.", ephemeral=True)
+            await update_tactical_callsign_nickname(member, role_name, removing=True)
+            await interaction.response.send_message(f"🗑️ Removed **{role.mention}** and cleared tactical call-sign.", ephemeral=True)
         else:
+            # Switch to new squad role: remove other squad roles first so member has 1 primary call-sign
+            other_squad_roles = [discord.utils.get(guild.roles, name=n) for n in SQUAD_ROLE_PREFIXES.keys() if n != role_name]
+            roles_to_remove = [r for r in other_squad_roles if r and r in member.roles]
+            if roles_to_remove:
+                await member.remove_roles(*roles_to_remove, reason="Switching squad specialization")
+
             await member.add_roles(role, reason="Self-claimed via Specialty Roles Hub")
-            await interaction.response.send_message(f"✅ Awarded **{role.mention}**! Check your profile.", ephemeral=True)
+            await update_tactical_callsign_nickname(member, role_name, removing=False)
+            tag = SQUAD_ROLE_PREFIXES.get(role_name, "")
+            await interaction.response.send_message(
+                f"✅ **Awarded {role.mention}!**\n"
+                f"🏷️ Your Tactical Call-Sign is now **`{tag} {member.name}`** (Visible to everyone in voice channels & chat).",
+                ephemeral=True
+            )
 
 class PlatformAndPingsView(discord.ui.View):
     def __init__(self):
@@ -385,6 +435,10 @@ async def on_member_update(before: discord.Member, after: discord.Member):
     for role in new_roles:
         await send_role_promotion_celebration(after, role)
 
+        # Update call-sign nickname if assigned via staff/bot
+        if role.name in SQUAD_ROLE_PREFIXES:
+            await update_tactical_callsign_nickname(after, role.name, removing=False)
+
         # Log to mod-logs and audit-logs
         guild = after.guild
         audit_ch = find_ch(guild, "audit")
@@ -548,7 +602,7 @@ class FlightStandardsRulesView(discord.ui.View):
                 timestamp=datetime.datetime.now(datetime.timezone.utc)
             )
             w_embed.set_thumbnail(url=member.display_avatar.url)
-            await welcome_ch.send(embed=w_embed)
+            await welcome_ch.send(embed=welcome_ch)
 
         await interaction.response.send_message(
             "🎉 **Flight Standards Accepted!** You are now a **@✈️ Verified Pilot** with full server access. Welcome aboard!",
