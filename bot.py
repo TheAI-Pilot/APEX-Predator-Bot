@@ -54,6 +54,68 @@ apex_bot = commands.Bot(command_prefix="!", intents=intents)
 ai_pilot_bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ==============================================================================
+# 🎉 UNIVERSAL CELEBRATORY ROLE PROMOTION DIRECT MESSAGE DISPATCHER
+# ==============================================================================
+CELEBRATION_BANNERS = [
+    "https://images-ext-1.discordapp.net/external/vj01uR4e8K44r4aPz3aV0v2c1e6Q_banner.png", # fallback or standard
+    "https://media.giphy.com/media/26tOZ42Mg6pbTUPHW/giphy.gif" # celebratory fireworks
+]
+
+async def send_role_promotion_celebration(member: discord.Member, role: discord.Role):
+    if member.bot or role.name == "@everyone":
+        return
+
+    guild = member.guild
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    embed_color = role.color if role.color.value != 0 else discord.Color.from_rgb(241, 196, 15)
+
+    celebration_embed = discord.Embed(
+        title=f"🎉 🏆 👑 PROMOTION CELEBRATION! 👑 🏆 🎉",
+        description=f"## 🎖️ CONGRATULATIONS, {member.name.upper()}! 🎖️\n\n"
+                    f"You have officially unlocked and been awarded the prestigious role:\n\n"
+                    f"# ✨ **{role.name}** ✨\n\n"
+                    f"🏛️ **Server:** **{guild.name}**\n"
+                    f"📅 **Awarded On:** `{now_utc.strftime('%Y-%m-%d %H:%M:%S UTC')}`",
+        color=embed_color,
+        timestamp=now_utc
+    )
+
+    if guild.icon:
+        celebration_embed.set_thumbnail(url=guild.icon.url)
+    else:
+        celebration_embed.set_thumbnail(url=member.display_avatar.url)
+
+    celebration_embed.add_field(
+        name="🌟 RECOGNITION OF EXCELLENCE",
+        value=f"Your relentless activity, high-signal contributions, and dedication have been recognized by Leadership! "
+              f"Holding the **@{role.name}** tier represents your elevated standing and influence within **{guild.name}**.",
+        inline=False
+    )
+
+    celebration_embed.add_field(
+        name="🚀 YOUR NEW PRIVILEGES & PERKS",
+        value=f"• 👑 **Badge of Honor**: Wear your new **@{role.name}** badge with pride in chat!\n"
+              f"• 🔓 **Exclusive Access**: Explore all channels and voice lounges unlocked by this tier.\n"
+              f"• 📈 **Climb Higher**: Continue participating, sharing wins, and aiming for top leadership ranks!",
+        inline=False
+    )
+
+    celebration_embed.set_image(url="https://media.giphy.com/media/26tOZ42Mg6pbTUPHW/giphy.gif")
+    
+    if guild.icon:
+        celebration_embed.set_footer(text=f"Official {guild.name} Honor System • Command Seal", icon_url=guild.icon.url)
+    else:
+        celebration_embed.set_footer(text=f"Official {guild.name} Honor System • Command Seal")
+
+    try:
+        await member.send(embed=celebration_embed)
+        print(f"[CELEBRATION] Dispatched promotion DM to {member.name} for role @{role.name} in {guild.name}", flush=True)
+    except discord.Forbidden:
+        print(f"[CELEBRATION] Could not DM {member.name} (DMs closed) for role @{role.name}", flush=True)
+    except Exception as e:
+        print(f"[CELEBRATION] Error sending DM to {member.name}: {e}", flush=True)
+
+# ==============================================================================
 # 🛡️ 1. APEX PREDATOR — ONBOARDING, VERIFICATION & TICKETS (Apex Universe)
 # ==============================================================================
 class ApexVerificationModal(discord.ui.Modal, title="🛡️ Accept Rules & Verify Operator"):
@@ -204,6 +266,39 @@ class TicketLaunchView(discord.ui.View):
         await ticket_ch.send(embed=ticket_embed, view=TicketCloseView())
         await interaction.response.send_message(f"✅ Ticket created in {ticket_ch.mention}.", ephemeral=True)
 
+# ------------------------------------------------------------------------------
+# 🔔 APEX PREDATOR ON_MEMBER_UPDATE: CELEBRATE ROLE ASSIGNMENTS & AUDIT LOG
+# ------------------------------------------------------------------------------
+@apex_bot.event
+async def on_member_update(before: discord.Member, after: discord.Member):
+    if after.bot:
+        return
+
+    new_roles = [r for r in after.roles if r not in before.roles and r.name != "@everyone"]
+    for role in new_roles:
+        await send_role_promotion_celebration(after, role)
+
+        # Log to mod-logs and audit-logs
+        guild = after.guild
+        audit_ch = discord.utils.get(guild.text_channels, name="audit-logs")
+        mod_ch = discord.utils.get(guild.text_channels, name="mod-logs")
+
+        embed = discord.Embed(
+            title="🎖️ ROLE AWARDED & CELEBRATED",
+            description=f"**User:** {after.mention} (`{after.name}`)\n"
+                        f"**Role Awarded:** {role.mention} (`{role.name}`)\n"
+                        f"**Status:** Celebratory DM dispatched to operator.",
+            color=discord.Color.gold(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc)
+        )
+        embed.set_thumbnail(url=after.display_avatar.url)
+        if audit_ch:
+            try: await audit_ch.send(embed=embed)
+            except: pass
+        if mod_ch:
+            try: await mod_ch.send(embed=embed)
+            except: pass
+
 # ==============================================================================
 # ✈️ 2. AI PILOT 2.0 — PROGRESSIVE 3-STEP SECURITY GATEWAY (AI Pilot Server)
 # ==============================================================================
@@ -352,6 +447,39 @@ class FlightStandardsRulesView(discord.ui.View):
             "🎉 **Flight Standards Accepted!** You are now a **@✈️ Verified Pilot** with full server access. Welcome aboard!",
             ephemeral=True
         )
+
+# ------------------------------------------------------------------------------
+# 🔔 AI PILOT ON_MEMBER_UPDATE: CELEBRATE ROLE ASSIGNMENTS & VAULT LOG
+# ------------------------------------------------------------------------------
+@ai_pilot_bot.event
+async def on_member_update(before: discord.Member, after: discord.Member):
+    if after.bot:
+        return
+
+    new_roles = [r for r in after.roles if r not in before.roles and r.name != "@everyone"]
+    for role in new_roles:
+        await send_role_promotion_celebration(after, role)
+
+        # Log to owner-vault and moderation-log
+        guild = after.guild
+        vault_ch = discord.utils.get(guild.text_channels, name="owner-vault")
+        mod_ch = discord.utils.get(guild.text_channels, name="moderation-log")
+
+        embed = discord.Embed(
+            title="🎖️ PILOT MERIT PROMOTION & CELEBRATION",
+            description=f"**User:** {after.mention} (`{after.name}`)\n"
+                        f"**Role Conferred:** {role.mention} (`{role.name}`)\n"
+                        f"**Status:** Celebratory honor DM dispatched.",
+            color=discord.Color.gold(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc)
+        )
+        embed.set_thumbnail(url=after.display_avatar.url)
+        if vault_ch:
+            try: await vault_ch.send(embed=embed)
+            except: pass
+        if mod_ch:
+            try: await mod_ch.send(embed=embed)
+            except: pass
 
 # ==============================================================================
 # ⚡ 3. 6 HIGH-IMPACT CLOUD BOT COMMANDS (AI PILOT 2.0)
